@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2015 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ import org.apache.ibatis.type.SimpleTypeRegistry;
  * @author Clinton Begin
  */
 public class TextSqlNode implements SqlNode {
-  private String text;
-  private Pattern injectionFilter;
+  private final String text;
+  private final Pattern injectionFilter;
 
   public TextSqlNode(String text) {
     this(text, null);
@@ -75,7 +75,7 @@ public class TextSqlNode implements SqlNode {
         context.getBindings().put("value", parameter);
       }
       Object value = OgnlCache.getValue(content, context.getBindings());
-      String srtValue = (value == null ? "" : String.valueOf(value)); // issue #274 return "" instead of "null"
+      String srtValue = value == null ? "" : String.valueOf(value); // issue #274 return "" instead of "null"
       checkInjection(srtValue);
       return srtValue;
     }

@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 package org.apache.ibatis.logging.jdbc;
 
+import java.sql.Array;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -25,6 +27,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 
 import org.apache.ibatis.logging.Log;
+import org.apache.ibatis.reflection.ArrayUtil;
 
 /**
  * Base class for proxies to do logging
@@ -34,13 +37,13 @@ import org.apache.ibatis.logging.Log;
  */
 public abstract class BaseJdbcLogger {
 
-  protected static final Set<String> SET_METHODS = new HashSet<String>();
-  protected static final Set<String> EXECUTE_METHODS = new HashSet<String>();
+  protected static final Set<String> SET_METHODS = new HashSet<>();
+  protected static final Set<String> EXECUTE_METHODS = new HashSet<>();
 
-  private Map<Object, Object> columnMap = new HashMap<Object, Object>();
+  private final Map<Object, Object> columnMap = new HashMap<>();
 
-  private List<Object> columnNames = new ArrayList<Object>();
-  private List<Object> columnValues = new ArrayList<Object>();
+  private final List<Object> columnNames = new ArrayList<>();
+  private final List<Object> columnValues = new ArrayList<>();
 
   protected Log statementLog;
   protected int queryStack;
@@ -100,16 +103,27 @@ public abstract class BaseJdbcLogger {
   }
 
   protected String getParameterValueString() {
-    List<Object> typeList = new ArrayList<Object>(columnValues.size());
+    List<Object> typeList = new ArrayList<>(columnValues.size());
     for (Object value : columnValues) {
       if (value == null) {
         typeList.add("null");
       } else {
-        typeList.add(value + "(" + value.getClass().getSimpleName() + ")");
+        typeList.add(objectValueString(value) + "(" + value.getClass().getSimpleName() + ")");
       }
     }
     final String parameters = typeList.toString();
     return parameters.substring(1, parameters.length() - 1);
+  }
+
+  protected String objectValueString(Object value) {
+    if (value instanceof Array) {
+      try {
+        return ArrayUtil.toString(((Array) value).getArray());
+      } catch (SQLException e) {
+        return value.toString();
+      }
+    }
+    return value.toString();
   }
 
   protected String getColumnString() {

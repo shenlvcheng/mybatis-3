@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -17,11 +17,16 @@ package org.apache.ibatis.executor.resultset;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +50,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DefaultResultSetHandlerTest {
@@ -83,7 +88,6 @@ public class DefaultResultSetHandlerTest {
     when(rs.getType()).thenReturn(ResultSet.TYPE_FORWARD_ONLY);
     when(rs.next()).thenReturn(true).thenReturn(false);
     when(rs.getInt("CoLuMn1")).thenReturn(100);
-    when(rs.wasNull()).thenReturn(false);
     when(rsmd.getColumnCount()).thenReturn(1);
     when(rsmd.getColumnLabel(1)).thenReturn("CoLuMn1");
     when(rsmd.getColumnType(1)).thenReturn(Types.INTEGER);
@@ -106,11 +110,13 @@ public class DefaultResultSetHandlerTest {
             null/*parameterHandler*/, null/*resultHandler*/, null/*boundSql*/, rowBounds);
 
     final ResultSetWrapper rsw = mock(ResultSetWrapper.class);
+    when(rsw.getResultSet()).thenReturn(mock(ResultSet.class));
 
     final ResultMapping resultMapping = mock(ResultMapping.class);
     final TypeHandler typeHandler = mock(TypeHandler.class);
+    when(resultMapping.getColumn()).thenReturn("column");
     when(resultMapping.getTypeHandler()).thenReturn(typeHandler);
-    when(typeHandler.getResult(any(ResultSet.class), (String) anyObject())).thenThrow(new SQLException("exception"));
+    when(typeHandler.getResult(any(ResultSet.class), any(String.class))).thenThrow(new SQLException("exception"));
     List<ResultMapping> constructorMappings = Collections.singletonList(resultMapping);
 
     try {

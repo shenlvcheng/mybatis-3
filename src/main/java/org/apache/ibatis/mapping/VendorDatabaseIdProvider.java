@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2015 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import java.util.Properties;
 
 import javax.sql.DataSource;
 
-import org.apache.ibatis.executor.BaseExecutor;
 import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.logging.LogFactory;
 
@@ -40,8 +39,6 @@ import org.apache.ibatis.logging.LogFactory;
  */
 public class VendorDatabaseIdProvider implements DatabaseIdProvider {
   
-  private static final Log log = LogFactory.getLog(BaseExecutor.class);
-
   private Properties properties;
 
   @Override
@@ -52,7 +49,7 @@ public class VendorDatabaseIdProvider implements DatabaseIdProvider {
     try {
       return getDatabaseName(dataSource);
     } catch (Exception e) {
-      log.error("Could not get a databaseId from dataSource", e);
+      LogHolder.log.error("Could not get a databaseId from dataSource", e);
     }
     return null;
   }
@@ -92,5 +89,9 @@ public class VendorDatabaseIdProvider implements DatabaseIdProvider {
       }
     }
   }
-  
+
+  private static class LogHolder {
+    private static final Log log = LogFactory.getLog(VendorDatabaseIdProvider.class);
+  }
+
 }

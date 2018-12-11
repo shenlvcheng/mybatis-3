@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2015 the original author or authors.
+ *    Copyright 2009-2018 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -15,77 +15,143 @@
  */
 package org.apache.ibatis.submitted.refcursor;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 import java.io.IOException;
-import java.io.Reader;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.BaseDataTest;
+import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;
+import org.apache.ibatis.mapping.Environment;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ResultContext;
+import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
-import org.junit.Ignore;
+import org.apache.ibatis.test.EmbeddedPostgresqlTests;
+import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
-/*
- * This class contains tests for refcursors.  The tests require a
- * local install of PostgreSQL and cannot be run as a part of the normal
- * MyBatis build unless PostreSQL is setup on the build machine as 
- * described in setupdb.txt
- * 
- * If PostgreSQL is setup as described in setupdb.txt, then remove
- * the @Ignore annotation to enable the tests.
- * 
+import ru.yandex.qatools.embed.postgresql.EmbeddedPostgres;
+import ru.yandex.qatools.embed.postgresql.util.SocketUtil;
+
+/**
  * @author Jeff Butler
- *
  */
-@Ignore("See setupdb.txt for instructions on how to run the tests in this class")
+@Category(EmbeddedPostgresqlTests.class)
 public class RefCursorTest {
-    @SuppressWarnings("unchecked")
-    @Test
-    public void testRefCursor1() throws IOException {
-        Reader reader = Resources.getResourceAsReader("org/apache/ibatis/submitted/refcursor/MapperConfig.xml");
-        SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(reader);
-        SqlSession sqlSession = sqlSessionFactory.openSession();
-        try {
-            OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
-            Map<String, Object> parameter = new HashMap<String, Object>();
-            parameter.put("orderId", 1);
-            mapper.getOrder1(parameter);
-            
-            assertNotNull(parameter.get("order"));
-            List<Order> orders = (List<Order>) parameter.get("order");
-            assertEquals(1, orders.size());
-            Order order = orders.get(0);
-            assertEquals(3, order.getDetailLines().size());
-        } finally {
-            sqlSession.close();
-        }
+
+  private static final EmbeddedPostgres postgres = new EmbeddedPostgres();
+
+  private static SqlSessionFactory sqlSessionFactory;
+
+  @BeforeClass
+  public static void setUp() throws Exception {
+    // Launch PostgreSQL server. Download / unarchive if necessary.
+    String url = postgres.start(EmbeddedPostgres.cachedRuntimeConfig(Paths.get(System.getProperty("java.io.tmpdir"), "pgembed")), "localhost", SocketUtil.findFreePort(), "refcursor", "postgres", "root", Collections.emptyList());
+
+    Configuration configuration = new Configuration();
+    Environment environment = new Environment("development", new JdbcTransactionFactory(), new UnpooledDataSource(
+        "org.postgresql.Driver", url, null));
+    configuration.setEnvironment(environment);
+    configuration.addMapper(OrdersMapper.class);
+    sqlSessionFactory = new SqlSessionFactoryBuilder().build(configuration);
+
+    BaseDataTest.runScript(sqlSessionFactory.getConfiguration().getEnvironment().getDataSource(),
+        "org/apache/ibatis/submitted/refcursor/CreateDB.sql");
+  }
+
+  @AfterClass
+  public static void tearDown() {
+    postgres.stop();
+  }
+
+  @Test
+  public void testRefCursor1() throws IOException {
+    try (SqlSession sqlSession = sqlSessionFactory.openSession()) {
+      OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
+      Map<String, Object> parameter = new HashMap<String, Object>();
+      parameter.put("orderId", 1);
+      mapper.getOrder1(parameter);
+
+      assertNotNull(parameter.get("order"));
+      @SuppressWarnings("unchecked")
+      List<Order> orders = (List<Order>) parameter.get("order");
+      assertEquals(1, orders.size());
+      Order order = orders.get(0);
+      assertEquals(3, order.getDetailLines().size());
+    }
+  }
+
+  @Test
+  public void testRefCursor2() throws IOException {
+    try (SqlSession sqlSession = sqlSessionFactory.openSession()) {
+      OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
+      Map<String, Object> parameter = new HashMap<String, Object>();
+      parameter.put("orderId", 1);
+      mapper.getOrder2(parameter);
+
+      assertNotNull(parameter.get("order"));
+      @SuppressWarnings("unchecked")
+      List<Order> orders = (List<Order>) parameter.get("order");
+      assertEquals(1, orders.size());
+      Order order = orders.get(0);
+      assertEquals(3, order.getDetailLines().size());
+    }
+  }
+
+  @Test
+  public void shouldUseResultHandlerOnOutputParam() throws IOException {
+    class OrderResultHandler implements ResultHandler<Order> {
+      private List<Order> orders = new ArrayList<Order>();
+
+      @Override
+      public void handleResult(ResultContext<? extends Order> resultContext) {
+        Order order = resultContext.getResultObject();
+        order.setCustomerName("Anonymous");
+        orders.add(order);
+      }
+
+      List<Order> getResult() {
+        return orders;
+      }
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
-    public void testRefCursor2() throws IOException {
-        Reader reader = Resources.getResourceAsReader("org/apache/ibatis/submitted/refcursor/MapperConfig.xml");
-        SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(reader);
-        SqlSession sqlSession = sqlSessionFactory.openSession();
-        try {
-            OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
-            Map<String, Object> parameter = new HashMap<String, Object>();
-            parameter.put("orderId", 1);
-            mapper.getOrder2(parameter);
-            
-            assertNotNull(parameter.get("order"));
-            List<Order> orders = (List<Order>) parameter.get("order");
-            assertEquals(1, orders.size());
-            Order order = orders.get(0);
-            assertEquals(3, order.getDetailLines().size());
-        } finally {
-            sqlSession.close();
-        }
+    try (SqlSession sqlSession = sqlSessionFactory.openSession()) {
+      OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
+      OrderResultHandler handler = new OrderResultHandler();
+      Map<String, Object> parameter = new HashMap<String, Object>();
+      parameter.put("orderId", 1);
+      mapper.getOrder3(parameter, handler);
+
+      assertNull(parameter.get("order"));
+      assertEquals(Integer.valueOf(3), parameter.get("detailCount"));
+      assertEquals("Anonymous", handler.getResult().get(0).getCustomerName());
     }
+  }
+
+  @Test
+  public void shouldNullResultSetNotCauseNpe() throws IOException {
+    try (SqlSession sqlSession = sqlSessionFactory.openSession()) {
+      OrdersMapper mapper = sqlSession.getMapper(OrdersMapper.class);
+      Map<String, Object> parameter = new HashMap<String, Object>();
+      parameter.put("orderId", 99);
+      mapper.getOrder3(parameter, new ResultHandler<Order>() {
+        @Override
+        public void handleResult(ResultContext<? extends Order> resultContext) {
+          // won't be used
+        }
+      });
+      assertEquals(Integer.valueOf(0), parameter.get("detailCount"));
+    }
+  }
 }
